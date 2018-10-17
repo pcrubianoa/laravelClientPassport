@@ -1,65 +1,172 @@
-<p align="center"><img src="https://laravel.com/assets/img/components/logo-laravel.svg"></p>
+## Laravel Client Passport
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/d/total.svg" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/v/stable.svg" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/license.svg" alt="License"></a>
-</p>
 
-## About Laravel
+1. Make auth and run migration:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel attempts to take the pain out of development by easing common tasks used in the majority of web projects, such as:
+```
+php artisan make:auth
+```
+```
+php artisan migrate
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+2. Make Token model with migration:
 
-Laravel is accessible, yet powerful, providing tools needed for large, robust applications.
+```
+php artisan make:model -m Token
+```
 
-## Learning Laravel
+3. Add `user_id` and `access_token` field to migration and run migration:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of any modern web application framework, making it a breeze to get started learning the framework.
+```php
+Schema::create('tokens', function (Blueprint $table) {
+    $table->increments('id');
+    $table->integer('user_id')->unsigned()->index();
+    $table->text('access_token');
+    $table->timestamps();
 
-If you're not in the mood to read, [Laracasts](https://laracasts.com) contains over 1100 video tutorials on a range of topics including Laravel, modern PHP, unit testing, JavaScript, and more. Boost the skill level of yourself and your entire team by digging into our comprehensive video library.
+    $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+});
+```
+4. Add relationship function to User model:
 
-## Laravel Sponsors
+```php
+public function token()
+{
+    return $this->hasOne(Token::class);
+}
+```
 
-We would like to extend our thanks to the following sponsors for helping fund on-going Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell):
+5. Add relationship function to Token model:
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[British Software Development](https://www.britishsoftware.co)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- [UserInsights](https://userinsights.com)
-- [Fragrantica](https://www.fragrantica.com)
-- [SOFTonSOFA](https://softonsofa.com/)
-- [User10](https://user10.com)
-- [Soumettre.fr](https://soumettre.fr/)
-- [CodeBrisk](https://codebrisk.com)
-- [1Forge](https://1forge.com)
-- [TECPRESSO](https://tecpresso.co.jp/)
-- [Runtime Converter](http://runtimeconverter.com/)
-- [WebL'Agence](https://weblagence.com/)
-- [Invoice Ninja](https://www.invoiceninja.com)
-- [iMi digital](https://www.imi-digital.de/)
-- [Earthlink](https://www.earthlink.ro/)
-- [Steadfast Collective](https://steadfastcollective.com/)
+```php
+protected $fillable = ['access_token'];
 
-## Contributing
+public function user()
+{
+    return $this->belongsTo(User::class);
+}
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+6. Make TwitterAuthcontroller:
 
-## Security Vulnerabilities
+```
+php artisan make:controller TwitterAuthController
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+7. Add web routes:
 
-## License
+```php
+Route::group(['middleware' => ['auth']], function () {
+    Route::get('/auth/twitter', 'TwitterAuthController@redirect');
+    Route::get('/auth/twitter/callback', 'TwitterAuthController@callback');
+    Route::get('/auth/twitter/refresh', 'TwitterAuthController@refresh');
+});
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+8. Create redirect function in `TwitterAuthController`:
+
+```php
+public function redirect()
+{
+    $query = http_build_query([
+        'client_id' => '9',
+        'redirect_uri' => 'http://laravelclientpassport.test/auth/twitter/callback',
+        'response_type' => 'code',
+        'scope' => '*'
+    ]);
+
+    return redirect('http://laravelauthenticationpassport.test/oauth/authorize?' . $query);
+}
+```
+
+9. Add passport routes to `AuthServiceProvider`:
+
+```
+Passport::routes();
+```
+10. Composer install package `"guzzlehttp/guzzle`:
+
+```
+"require": {
+    "guzzlehttp/guzzle": "^6.2",
+},
+```
+
+
+11. Create client guzzle in `TwitterAuthController`:
+
+```
+use GuzzleHttp\Client as Guzzle;
+```
+
+```php
+protected $client;
+
+public function __construct(Guzzle $client)
+{
+    $this->client = $client;
+}
+```
+
+12. Create callback function in `TwitterAuthController`:
+
+```php
+public function callback(Request $request)
+{
+    $response = $this->client->post('http://laravelauthenticationpassport.test/oauth/token', [
+        'form_params' => [
+            'grant_type' => 'authorization_code',
+            'client_id' => '9',
+            'client_secret' => 'm23EW9H0zxjoeVEkUP00CgGwigWHWrX8AQAfx7Tl',
+            'redirect_uri' => 'http://laravelclientpassport.test/auth/twitter/callback',
+            'code' => $request->code
+        ]
+    ]);
+
+    $response = json_decode($response->getBody());
+
+    $request->user()->token()->delete();
+
+    $request->user()->token()->create([
+        'access_token' => $response->access_token
+    ]);
+
+    return redirect('/home');
+}
+```
+
+13. Check access_token with `dd($response)`:
+
+```
+{#263 ▼
+  +"token_type": "Bearer"
+  +"expires_in": 31535999
+  +"access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6ImJiMWE3NzRhMDk2NDRkZDg5NDYwMTNjMTE2ZDNmNTMzOWYxODgxYjFhMmE2ZGYzNjc5NmJjYTY4ZTJkZWZlMzdjN2E4ODBkMDIwZDBlOTY3In0.eyJh ▶"
+  +"refresh_token": "def502006068f9198744cf2118d5b933b716a65bbcad7f51664b5b1efcdda03c491db5e85e836c5a0c59ecba2ebfaea72327e0b5a445aa761de884a50a85310222c05e45d6bdf5bcb659394d5badbb59 ▶"
+}
+```
+
+14. Render tweets in `home.blade.php` (index method HomeController):
+
+```php
+public function index(Request $request)
+{
+    $tweets = collect();
+
+    if ($request->user()->token) {
+        $response = $this->client->get('http://laravelauthenticationpassport.test/api/tweets', [
+            'headers' => [
+                'Accept' => 'application/json',
+                'Authorization' => 'Bearer ' . $request->user()->token->access_token
+            ]
+        ]);
+
+        $tweets = collect(json_decode($response->getBody()));
+    }
+
+    return view('home')->with([
+        'tweets' => $tweets,
+    ]);
+}
+```

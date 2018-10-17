@@ -21,7 +21,7 @@ class TwitterAuthController extends Controller
             'client_id' => '9',
             'redirect_uri' => 'http://laravelclientpassport.test/auth/twitter/callback',
             'response_type' => 'code',
-            'scope' => '*'
+            'scope' => 'view-tweets'
         ]);
 
         return redirect('http://laravelauthenticationpassport.test/oauth/authorize?' . $query);

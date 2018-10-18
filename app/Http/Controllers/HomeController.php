@@ -27,6 +27,10 @@ class HomeController extends Controller
     public function index(Request $request)
     {
         $tweets = collect();
+        
+        if($request->user()->token->hasExpired()){
+            dd('expired');
+        }
 
         if ($request->user()->token) {
             $response = $this->client->get('http://laravelauthenticationpassport.test/api/tweets', [

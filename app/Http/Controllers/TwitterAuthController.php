@@ -51,4 +51,27 @@ class TwitterAuthController extends Controller
 
         return redirect('/home');
     }
+
+    public function refresh(Request $request)
+    {
+        $response = $this->client->post('http://laravelauthenticationpassport.test/oauth/token', [
+            'form_params' => [
+                'grant_type' => 'refresh_token',
+                'refresh_token' => $request->user()->token->refresh_token,
+                'client_id' => '9',
+                'client_secret' => 'm23EW9H0zxjoeVEkUP00CgGwigWHWrX8AQAfx7Tl',
+                'scope' => 'view-tweets',
+            ]
+        ]);
+
+        $response = json_decode($response->getBody());
+
+        $request->user()->token()->update([
+            'access_token' => $response->access_token,
+            'expires_in' => $response->expires_in,
+            'refresh_token' => $response->refresh_token,
+        ]);
+
+        return redirect()->back();
+    }
 }
